@@ -33,7 +33,7 @@ class HtmlContent:
             elif t == HtmlContentType.DICT:
                 yield DictNewsContent(c.content)
             else:
-                yield from c.find_contents()
+                yield from c.find_news_contents()
 
     def detect_content_type(self) -> HtmlContentType:
         c = Counter()
