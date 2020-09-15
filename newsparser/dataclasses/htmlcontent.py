@@ -4,12 +4,12 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from dataclasses import dataclass
 from collections import Counter
-from typing import Union, Iterator
+from typing import Union, Iterator, List, Dict, Tuple
 
 
 @dataclass
 class HtmlContent:
-    content: Union[BeautifulSoup, Tag]
+    content: BeautifulSoupHtml
 
     @classmethod
     def parse(cls, text: str) -> HtmlContent:
@@ -22,29 +22,43 @@ class HtmlContent:
                 yield HtmlContent(x)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.content.name
 
+    @property
+    def attrs(self) -> Dict[str, str]:
+        return self.content.attrs
+
     def find_news_contents(self) -> Iterator[TNewsContent]:
+        # TODO:: 深さ優先探索にする
         for c in self.children:
             t = c.detect_content_type()
-            if t == HtmlContentType.LIST:
-                yield ListNewsContent(c.content)
-            elif t == HtmlContentType.DICT:
-                yield DictNewsContent(c.content)
+            if t.content_type == HtmlContentType.LIST:
+                yield ListNewsContent.convert(c, t)
+            elif t.content_type == HtmlContentType.DICT:
+                yield DictNewsContent.convert(c, t)
             else:
                 yield from c.find_news_contents()
 
-    def detect_content_type(self) -> HtmlContentType:
-        c = Counter()
-        for x in self.children:
-            c[x.name] += 1
-        # TODO::
+    def detect_content_type(self) -> TContentTypeResult:
+        c = Counter(
+            TagEqKey(tag_name=x.name, tag_class=tuple(x.attrs.get("class", [])))
+            for x in self.children
+        )
         commons = c.most_common(1)
         for _, i in commons:
             if i == 1:
-                return HtmlContentType.OTHER
-        return HtmlContentType.from_size(len(commons))
+                return ContentTypeOtherResult()
+
+        size = len(commons)
+        if size == 1:
+            return ContentTypeListResult(tag=commons[0][0])
+        elif size == 2:
+            # TODO:: 順番が保証されてるか確認
+            key, value = commons
+            return ContentTypeDictResult(key=key[0], value=value[0])
+        else:
+            return ContentTypeOtherResult()
 
 
 class HtmlContentType(Enum):
@@ -52,26 +66,94 @@ class HtmlContentType(Enum):
     DICT = "dict"
     OTHER = "other"
 
-    @classmethod
-    def from_size(cls, size: int) -> HtmlContentType:
-        if size == 1:
-            return cls.LIST
-        elif size == 2:
-            return cls.DICT
-        else:
-            return cls.OTHER
-
 
 @dataclass
-class ListNewsContent:
-    content: Union[BeautifulSoup, Tag]
+class ContentTypeListResult:
+    tag: TagEqKey
     content_type: HtmlContentType = HtmlContentType.LIST
 
 
 @dataclass
-class DictNewsContent:
-    content: Union[BeautifulSoup, Tag]
+class ContentTypeDictResult:
+    key: TagEqKey
+    value: TagEqKey
     content_type: HtmlContentType = HtmlContentType.DICT
 
 
+@dataclass
+class ContentTypeOtherResult:
+    content_type: HtmlContentType = HtmlContentType.OTHER
+
+
+@dataclass
+class ListNewsContent:
+    content: BeautifulSoupHtml
+    list_elements: List[ListElement]
+    content_type: HtmlContentType = HtmlContentType.LIST
+
+    @classmethod
+    def convert(
+        cls, content: HtmlContent, result: ContentTypeListResult
+    ) -> ListNewsContent:
+        return cls(
+            content=content.content,
+            list_elements=[
+                ListElement(x.content)
+                for x in content.children
+                if x.name == result.tag.tag_name
+            ],
+        )
+
+
+@dataclass
+class DictNewsContent:
+    content: BeautifulSoupHtml
+    dict_elements: Dict[DictKeyElement, DictValueElement]
+    content_type: HtmlContentType = HtmlContentType.DICT
+
+    @classmethod
+    def convert(
+        cls, content: HtmlContent, result: ContentTypeDictResult
+    ) -> DictNewsContent:
+        return cls(content=content.content)
+
+
+@dataclass
+class ListElement:
+    content: BeautifulSoupHtml
+
+    def title(self) -> str:
+        try:
+            return self.content.find("title").text
+        except Exception:
+            print(self.content)
+            return None
+
+    def url(self) -> str:
+        for k in ["a", "link"]:
+            if v := self.content.find(k):
+                return v.attrs.get("href", None)
+        return None
+
+
+@dataclass
+class DictKeyElement:
+    content: BeautifulSoupHtml
+
+
+@dataclass
+class DictValueElement:
+    content: BeautifulSoupHtml
+
+
+@dataclass(eq=True, frozen=True)
+class TagEqKey:
+    tag_name: str
+    tag_class: Tuple[str]
+
+
+BeautifulSoupHtml = Union[BeautifulSoup, Tag]
 TNewsContent = Union[ListNewsContent, DictNewsContent]
+TContentTypeResult = Union[
+    ContentTypeListResult, ContentTypeDictResult, ContentTypeOtherResult
+]
