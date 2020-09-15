@@ -13,21 +13,17 @@ class HtmlContent:
 
     @classmethod
     def parse(cls, text: str) -> HtmlContent:
-        return cls(BeautifulSoup(text))
-
-    @property
-    def children(self) -> Iterator[HtmlContent]:
-        for x in self.content.children:
-            if x.name is not None:
-                yield HtmlContent(x)
+        return cls(BeautifulSoup(text).body)
 
     @property
     def name(self) -> str:
         return self.content.name
 
     @property
-    def attrs(self) -> Dict[str, str]:
-        return self.content.attrs
+    def children(self) -> Iterator[HtmlContent]:
+        for x in self.content.children:
+            if x.name is not None:
+                yield HtmlContent(x)
 
     def find_news_contents(self) -> Iterator[TNewsContent]:
         # TODO:: 深さ優先探索にする
@@ -41,10 +37,7 @@ class HtmlContent:
                 yield from c.find_news_contents()
 
     def detect_content_type(self) -> TContentTypeResult:
-        c = Counter(
-            TagEqKey(tag_name=x.name, tag_class=tuple(x.attrs.get("class", [])))
-            for x in self.children
-        )
+        c = Counter(TagEqKey.parse(x.content) for x in self.children)
         commons = c.most_common(1)
         for _, i in commons:
             if i == 1:
@@ -149,7 +142,16 @@ class DictValueElement:
 @dataclass(eq=True, frozen=True)
 class TagEqKey:
     tag_name: str
+    tag_id: str
     tag_class: Tuple[str]
+
+    @classmethod
+    def parse(cls, content: BeautifulSoupHtml) -> TagEqKey:
+        return cls(
+            tag_name=content.name,
+            tag_id=tuple(content.attrs.get("id", [])),
+            tag_class=tuple(content.attrs.get("class", [])),
+        )
 
 
 BeautifulSoupHtml = Union[BeautifulSoup, Tag]
