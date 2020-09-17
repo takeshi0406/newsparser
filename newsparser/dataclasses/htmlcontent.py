@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from dataclasses import dataclass
 from collections import Counter
-from typing import Union, Iterator, List, Dict, Tuple
+from typing import Union, Iterator, List, Tuple
 
 
 @dataclass
@@ -26,37 +26,29 @@ class HtmlContent:
                 yield HtmlContent(x)
 
     def find_news_contents(self) -> Iterator[TNewsContent]:
-        # TODO:: 深さ優先探索にする
         for c in self.children:
             t = c.detect_content_type()
             if t.content_type == HtmlContentType.LIST:
                 yield ListNewsContent.convert(c, t)
-            elif t.content_type == HtmlContentType.DICT:
-                yield DictNewsContent.convert(c, t)
             else:
                 yield from c.find_news_contents()
 
     def detect_content_type(self) -> TContentTypeResult:
         c = Counter(TagEqKey.parse(x.content) for x in self.children)
-        commons = c.most_common(1)
-        for _, i in commons:
-            if i == 1:
-                return ContentTypeOtherResult()
-
-        size = len(commons)
-        if size == 1:
+        commons = c.most_common(2)
+        if (
+            # one type and multiple tags exist
+            (len(commons) == 1 and commons[0][1] != 1)
+            # Multiple type and one top tag exists
+            or (len(commons) == 2 and set(c for _, c in commons) == 2)
+        ):
             return ContentTypeListResult(tag=commons[0][0])
-        elif size == 2:
-            # TODO:: 順番が保証されてるか確認
-            key, value = commons
-            return ContentTypeDictResult(key=key[0], value=value[0])
         else:
             return ContentTypeOtherResult()
 
 
 class HtmlContentType(Enum):
     LIST = "list"
-    DICT = "dict"
     OTHER = "other"
 
 
@@ -64,13 +56,6 @@ class HtmlContentType(Enum):
 class ContentTypeListResult:
     tag: TagEqKey
     content_type: HtmlContentType = HtmlContentType.LIST
-
-
-@dataclass
-class ContentTypeDictResult:
-    key: TagEqKey
-    value: TagEqKey
-    content_type: HtmlContentType = HtmlContentType.DICT
 
 
 @dataclass
@@ -99,19 +84,6 @@ class ListNewsContent:
 
 
 @dataclass
-class DictNewsContent:
-    content: BeautifulSoupHtml
-    dict_elements: Dict[DictKeyElement, DictValueElement]
-    content_type: HtmlContentType = HtmlContentType.DICT
-
-    @classmethod
-    def convert(
-        cls, content: HtmlContent, result: ContentTypeDictResult
-    ) -> DictNewsContent:
-        return cls(content=content.content)
-
-
-@dataclass
 class ListElement:
     content: BeautifulSoupHtml
 
@@ -127,16 +99,6 @@ class ListElement:
             if v := self.content.find(k):
                 return v.attrs.get("href", None)
         return None
-
-
-@dataclass
-class DictKeyElement:
-    content: BeautifulSoupHtml
-
-
-@dataclass
-class DictValueElement:
-    content: BeautifulSoupHtml
 
 
 @dataclass(eq=True, frozen=True)
@@ -155,7 +117,5 @@ class TagEqKey:
 
 
 BeautifulSoupHtml = Union[BeautifulSoup, Tag]
-TNewsContent = Union[ListNewsContent, DictNewsContent]
-TContentTypeResult = Union[
-    ContentTypeListResult, ContentTypeDictResult, ContentTypeOtherResult
-]
+TNewsContent = Union[ListNewsContent]
+TContentTypeResult = Union[ContentTypeListResult, ContentTypeOtherResult]
