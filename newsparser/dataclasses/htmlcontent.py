@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from collections import Counter
 from typing import Union, Iterator, List, Tuple
 
+IGNORE_TAGS = {"script", "meta"}
+
 
 @dataclass
 class HtmlContent:
@@ -13,7 +15,7 @@ class HtmlContent:
 
     @classmethod
     def parse(cls, text: str) -> HtmlContent:
-        return cls(BeautifulSoup(text, "html5lib").body)
+        return cls(BeautifulSoup(text, "html5lib"))
 
     @property
     def name(self) -> str:
@@ -22,7 +24,7 @@ class HtmlContent:
     @property
     def children(self) -> Iterator[HtmlContent]:
         for x in self.content.children:
-            if x.name is not None:
+            if x.name is not None and x.name not in IGNORE_TAGS:
                 yield HtmlContent(x)
 
     def find_news_contents(self) -> Iterator[TNewsContent]:
@@ -40,7 +42,7 @@ class HtmlContent:
             # one type and multiple tags exist
             (len(commons) == 1 and commons[0][1] != 1)
             # Multiple type and one top tag exists
-            or (len(commons) == 2 and set(c for _, c in commons) == 2)
+            or (len(commons) == 2 and len(set(c for _, c in commons)) == 2)
         ):
             return ContentTypeListResult(tag=commons[0][0])
         else:
@@ -88,11 +90,17 @@ class ListElement:
     content: BeautifulSoupHtml
 
     def title(self) -> str:
-        try:
-            return self.content.find("title").text
-        except Exception:
-            print(self.content)
-            return None
+        titles = self.content.find_all("title") + self.content.find_all(
+            class_=lambda x: x and "title" in x
+        )
+        for x in titles:
+            return x.text.strip()
+
+        for k in ["p", "a"]:
+            if v := self.content.find(k):
+                return v.text.strip()
+
+        return None
 
     def url(self) -> str:
         for k in ["a", "link"]:

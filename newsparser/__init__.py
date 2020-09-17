@@ -13,6 +13,8 @@ class NewsParser:
         for x in html.find_news_contents():
             for y in x.list_elements:
                 print(y.title())
-                print(urljoin("https://google.com/foo/bar", y.url()))
+                print(y.url())
+                print(y.content)
+                print("*" * 10)
             print("--" * 100)
         return [NewsContent(title="", url="url")]
