@@ -1,5 +1,4 @@
 from typing import List
-from urllib.parse import urljoin
 from newsparser.dataclasses import NewsContent
 from newsparser.dataclasses.htmlcontent import HtmlContent
 
@@ -15,6 +14,7 @@ class NewsParser:
                 print(y.title())
                 print(y.url())
                 print(y.content)
+                # print(y.content.name, y.content.attrs)
                 print("*" * 10)
             print("--" * 100)
         return [NewsContent(title="", url="url")]

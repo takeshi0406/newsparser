@@ -27,13 +27,16 @@ class HtmlContent:
             if x.name is not None and x.name not in IGNORE_TAGS:
                 yield HtmlContent(x)
 
+    @property
+    def tag_key(self) -> TagEqKey:
+        return TagEqKey.parse(self.content)
+
     def find_news_contents(self) -> Iterator[TNewsContent]:
         for c in self.children:
             t = c.detect_content_type()
             if t.content_type == HtmlContentType.LIST:
                 yield ListNewsContent.convert(c, t)
-            else:
-                yield from c.find_news_contents()
+            yield from c.find_news_contents()
 
     def detect_content_type(self) -> TContentTypeResult:
         c = Counter(TagEqKey.parse(x.content) for x in self.children)
@@ -44,7 +47,7 @@ class HtmlContent:
             # Multiple type and one top tag exists
             or (len(commons) == 2 and len(set(c for _, c in commons)) == 2)
         ):
-            return ContentTypeListResult(tag=commons[0][0])
+            return ContentTypeListResult(tag_key=commons[0][0])
         else:
             return ContentTypeOtherResult()
 
@@ -56,7 +59,7 @@ class HtmlContentType(Enum):
 
 @dataclass
 class ContentTypeListResult:
-    tag: TagEqKey
+    tag_key: TagEqKey
     content_type: HtmlContentType = HtmlContentType.LIST
 
 
@@ -80,7 +83,7 @@ class ListNewsContent:
             list_elements=[
                 ListElement(x.content)
                 for x in content.children
-                if x.name == result.tag.tag_name
+                if x.tag_key == result.tag_key
             ],
         )
 
@@ -96,8 +99,10 @@ class ListElement:
         for x in titles:
             return x.text.strip()
 
-        for k in ["p", "a"]:
-            if v := self.content.find(k):
+        for k in ["h1", "h2", "h3", "h4", "p", "a"]:
+            if vs := self.content.find_all(k):
+                # TODO:: maxが違いそうなので、一度xpathに変換
+                v = max(vs, key=lambda x: len(x.text.strip()))
                 return v.text.strip()
 
         return None
@@ -112,7 +117,7 @@ class ListElement:
 @dataclass(eq=True, frozen=True)
 class TagEqKey:
     tag_name: str
-    tag_id: str
+    tag_id: Tuple[str]
     tag_class: Tuple[str]
 
     @classmethod
