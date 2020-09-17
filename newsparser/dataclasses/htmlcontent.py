@@ -13,7 +13,7 @@ class HtmlContent:
 
     @classmethod
     def parse(cls, text: str) -> HtmlContent:
-        return cls(BeautifulSoup(text).body)
+        return cls(BeautifulSoup(text, "html5lib").body)
 
     @property
     def name(self) -> str:

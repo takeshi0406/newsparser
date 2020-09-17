@@ -9,6 +9,7 @@ license = "MIT"
 python = "^3.8"
 beautifulsoup4 = "^4.9.1"
 dataclasses_json = "^0.5.2"
+html5lib = "^1.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.0.2"

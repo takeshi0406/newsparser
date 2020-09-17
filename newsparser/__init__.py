@@ -1,4 +1,5 @@
 from typing import List
+from urllib.parse import urljoin
 from newsparser.dataclasses import NewsContent
 from newsparser.dataclasses.htmlcontent import HtmlContent
 
@@ -12,6 +13,6 @@ class NewsParser:
         for x in html.find_news_contents():
             for y in x.list_elements:
                 print(y.title())
-                print(y.url())
+                print(urljoin("https://google.com/foo/bar", y.url()))
             print("--" * 100)
         return [NewsContent(title="", url="url")]
