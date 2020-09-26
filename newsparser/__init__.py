@@ -9,12 +9,9 @@ class NewsParser:
 
     def parse(self, text: str) -> List[NewsContent]:
         html = HtmlContent.parse(text)
+        result = []
         for x in html.find_news_contents():
             for y in x.list_elements:
-                print(y.title())
-                print(y.url())
-                print(y.content)
-                # print(y.content.name, y.content.attrs)
-                print("*" * 10)
-            print("--" * 100)
-        return [NewsContent(title="", url="url")]
+                if all(z is not None for z in (y.title(), y.url())):
+                    result.append(NewsContent(title=y.title(), url=y.url()))
+        return result

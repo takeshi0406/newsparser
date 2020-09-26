@@ -14,4 +14,5 @@ def htmls():
 
 def test(htmls):
     for key, html in htmls.items():
-        NewsParser().parse(html)
+        result = NewsParser().parse(html)
+        print(result)
